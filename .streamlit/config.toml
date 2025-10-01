@@ -1,0 +1,15 @@
+[theme]
+# Warna utama untuk elemen interaktif seperti tombol, slider, dll.
+primaryColor="#0073B4"
+
+# Warna background utama aplikasi Anda
+backgroundColor="#FFFFFF"
+
+# Warna background untuk sidebar dan elemen lainnya
+secondaryBackgroundColor="#fbed20"
+
+# Warna teks utama
+textColor="#31333F"
+
+# Font yang digunakan (sans serif, serif, atau monospace)
+font="sans serif"
