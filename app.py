@@ -4,37 +4,34 @@ import joblib
 from datetime import datetime
 import shap
 import matplotlib.pyplot as plt
-import base64 # <-- Import library baru untuk encode gambar
+import base64
 
-# ==============================================================================
-# KONFIGURASI APLIKASI WEB
-# ==============================================================================
-
+# Konfigurasi halaman Streamlit
 st.set_page_config(page_title="Prediksi Beban Listrik PLN", page_icon="⚡", layout="wide")
 
+# Fungsi untuk memuat model dan explainer agar tidak di-load ulang setiap interaksi
 @st.cache_resource
 def load_resources():
+    """Memuat model machine learning dan SHAP explainer dari file."""
     model = joblib.load('model_prediksi_beban.joblib')
     explainer = shap.TreeExplainer(model)
     return model, explainer
 
-# Fungsi untuk mengubah gambar menjadi Base64
+# Fungsi untuk mengubah file gambar menjadi format Base64 agar bisa disisipkan di HTML/CSS
 def get_image_as_base64(file):
+    """Membaca file gambar dan meng-encode-nya ke Base64."""
     with open(file, "rb") as f:
         data = f.read()
     return base64.b64encode(data).decode()
 
+# Memuat model dan gambar logo saat aplikasi pertama kali dijalankan
 model, explainer = load_resources()
-logo_base64 = get_image_as_base64("logo-pln.png") # <-- Ubah logo menjadi Base64
+logo_base64 = get_image_as_base64("logo-pln.png")
 
-# ==============================================================================
-# CSS KUSTOM
-# ==============================================================================
+# --- CSS Kustom untuk Styling Halaman ---
 st.markdown("""
 <style>
-/* ... (CSS lain tetap sama) ... */
-
-/* Card untuk hasil prediksi (dengan perbaikan styling) */
+/* Card untuk hasil prediksi */
 .prediction-card {
     border: 2px solid #DDDDDD;
     border-radius: 15px;
@@ -43,19 +40,19 @@ st.markdown("""
     box-shadow: 0 4px 8px 0 rgba(0,0,0,0.1);
     margin: 10px;
 }
-/* Styling untuk judul kartu "Hasil Prediksi" */
 .prediction-card h3 {
     margin-bottom: 10px;
-    font-weight: normal; /* <-- Dibuat tidak tebal */
+    font-weight: normal;
     font-size: 1.25em;
 }
-/* Styling untuk angka prediksi MW */
 .prediction-card p {
-    font-size: 2em; /* <-- Dibuat lebih besar */
-    font-weight: bold; /* <-- Dibuat tebal */
+    font-size: 2em;
+    font-weight: bold;
     color: #0073B4;
     margin: 0;
 }
+
+/* Header aplikasi dengan logo */
 .header-container {
     background-color: #E0F7FF;
     border-radius: 15px;
@@ -73,6 +70,8 @@ st.markdown("""
     font-size: 2.5em;
     margin: 0;
 }
+
+/* Styling untuk komponen input */
 .input-container {
     display: flex;
     flex-direction: column;
@@ -86,11 +85,9 @@ div[data-baseweb="input"] > div { background-color: #FFEB3B; border-radius: 10px
 </style>
 """, unsafe_allow_html=True)
 
-# ==============================================================================
-# TAMPILAN UI
-# ==============================================================================
+# --- Tampilan Utama Aplikasi ---
 
-# --- Header ---
+# Menampilkan header dengan logo dan judul
 st.markdown(f"""
 <div class="header-container">
     <img src="data:image/png;base64,{logo_base64}" alt="PLN Logo">
@@ -98,34 +95,46 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# --- Input Pengguna ---
+# Area untuk input pengguna
 st.header('Masukkan Waktu Prediksi')
-
 with st.container():
     st.markdown('<div class="input-container">', unsafe_allow_html=True)
     d = st.date_input("Pilih Tanggal", datetime.now())
     h = st.slider("Pilih Jam", 0, 23, 10)
     st.markdown('</div>', unsafe_allow_html=True)
 
+# Tombol prediksi ditempatkan di tengah
 st.markdown('<div style="text-align: center; margin-top: 20px;">', unsafe_allow_html=True)
-if st.button('Buat Prediksi', type="secondary"):
+if st.button('Buat Prediksi'):
     st.markdown('</div>', unsafe_allow_html=True)
     
+    # Menggabungkan tanggal dan jam dari input
     selected_datetime = datetime(d.year, d.month, d.day, h)
     
-    input_data = pd.DataFrame([{'hour': h, 'dayofweek': d.weekday(), 'quarter': pd.Timestamp(d).quarter, 'month': d.month, 'year': d.year, 'dayofyear': d.timetuple().tm_yday}])
+    # Membuat DataFrame dari input untuk diproses oleh model
+    input_data = pd.DataFrame([{
+        'hour': h,
+        'dayofweek': d.weekday(),
+        'quarter': pd.Timestamp(d).quarter,
+        'month': d.month,
+        'year': d.year,
+        'dayofyear': d.timetuple().tm_yday
+    }])
     
+    # Melakukan prediksi beban listrik
     prediksi = model.predict(input_data)
     
     st.markdown("---")
 
-    # --- Tampilan Hasil ---
+    # --- Area Tampilan Hasil Prediksi ---
     res1, res2 = st.columns(2)
+    
+    # Kolom kiri untuk menampilkan angka prediksi
     with res1:
         st.markdown(f'<div class="prediction-card"><h3>Hasil Prediksi</h3><p>{prediksi[0]:.2f} MW</p></div>', unsafe_allow_html=True)
         
+    # Kolom kanan untuk penjelasan grafik SHAP
     with res2:
-        # Menggunakan st.expander untuk penjelasan yang bisa dibuka-tutup
         with st.expander("Lihat Cara Membaca Grafik"):
             st.info("""
             Grafik di bawah menunjukkan bagaimana setiap fitur mendorong hasil prediksi dari nilai dasarnya.
@@ -133,10 +142,17 @@ if st.button('Buat Prediksi', type="secondary"):
             - **Fitur berwarna biru** menurunkan nilai prediksi.
             """)
     
-    # Grafik SHAP
+    # Menampilkan grafik SHAP force plot
     shap_values = explainer.shap_values(input_data)
     fig, ax = plt.subplots()
-    shap.force_plot(explainer.expected_value, shap_values[0], input_data.iloc[0], matplotlib=True, show=False, text_rotation=0)
+    shap.force_plot(
+        explainer.expected_value, 
+        shap_values[0], 
+        input_data.iloc[0], 
+        matplotlib=True, 
+        show=False, 
+        text_rotation=0
+    )
     fig = plt.gcf()
     fig.set_figwidth(12)
     fig.set_figheight(4)
@@ -144,4 +160,5 @@ if st.button('Buat Prediksi', type="secondary"):
     st.pyplot(fig)
     
 else:
+    # Penutup div jika tombol tidak ditekan, agar layout tetap rapi
     st.markdown('</div>', unsafe_allow_html=True)
